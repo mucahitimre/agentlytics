@@ -87,7 +87,7 @@ export function toLocalDateString(date = new Date()) {
 export function dateRangeToApiParams(range) {
   if (!range?.from || !range?.to) return {};
   return {
-    dateFrom: new Date(range.from).getTime(),
+    dateFrom: new Date(range.from + 'T00:00:00').getTime(),
     dateTo: new Date(range.to + 'T23:59:59').getTime(),
   };
 }
