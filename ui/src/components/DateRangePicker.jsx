@@ -1,14 +1,27 @@
-import { Calendar, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Calendar, ChevronDown, X } from 'lucide-react'
 import { useTheme } from '../lib/theme'
 import { toLocalDateString } from '../lib/constants'
 
 const PRESETS = [
-  { label: 'today', days: 0 },
   { label: '7d',  days: 7 },
   { label: '30d', days: 30 },
   { label: '90d', days: 90 },
   { label: '1y',  days: 365 },
 ]
+
+// Calendar-based ranges shown in the quick-range dropdown
+function quickRanges(now = new Date()) {
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate()
+  const mondayOffset = (now.getDay() + 6) % 7
+  const range = (from, to) => ({ from: toLocalDateString(from), to: toLocalDateString(to) })
+  return [
+    { label: 'today',      ...range(now, now) },
+    { label: 'yesterday',  ...range(new Date(y, m, d - 1), new Date(y, m, d - 1)) },
+    { label: 'last week',  ...range(new Date(y, m, d - mondayOffset - 7), new Date(y, m, d - mondayOffset - 1)) },
+    { label: 'last month', ...range(new Date(y, m - 1, 1), new Date(y, m, 0)) },
+  ]
+}
 
 // value: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } | null
 // onChange: called with same shape, or null to clear
@@ -16,6 +29,17 @@ export default function DateRangePicker({ value, onChange }) {
   const { dark } = useTheme()
   const today = toLocalDateString()
   const active = !!value
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+  const quick = quickRanges()
+  const activeQuick = active ? quick.find(q => q.from === value.from && q.to === value.to) : null
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = e => { if (!menuRef.current?.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
 
   function applyPreset(days) {
     const to = new Date()
@@ -38,10 +62,41 @@ export default function DateRangePicker({ value, onChange }) {
     <div className="flex items-center gap-1.5 flex-wrap">
       <Calendar size={12} style={{ color: active ? 'var(--c-accent)' : 'var(--c-text3)', flexShrink: 0 }} />
 
+      {/* Quick-range dropdown */}
+      <div ref={menuRef} className="relative">
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          className="flex items-center gap-1 px-2 py-0.5 text-[11px] transition"
+          style={{
+            border: activeQuick ? '1px solid var(--c-accent)' : '1px solid var(--c-border)',
+            color: activeQuick ? 'var(--c-accent)' : 'var(--c-text2)',
+            background: activeQuick ? 'rgba(99,102,241,0.1)' : 'transparent',
+          }}
+        >
+          {activeQuick ? activeQuick.label : 'today'} <ChevronDown size={10} />
+        </button>
+        {menuOpen && (
+          <div
+            className="absolute left-0 top-full mt-1 z-20 py-1 min-w-[110px]"
+            style={{ background: 'var(--c-bg2)', border: '1px solid var(--c-border)' }}
+          >
+            {quick.map(q => (
+              <button
+                key={q.label}
+                onClick={() => { onChange({ from: q.from, to: q.to }); setMenuOpen(false) }}
+                className="block w-full text-left px-2.5 py-1 text-[11px] transition hover:opacity-80"
+                style={{ color: activeQuick?.label === q.label ? 'var(--c-accent)' : 'var(--c-text2)' }}
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Preset buttons */}
       {PRESETS.map(p => {
-        const isActive = active && (() => {
-          if (p.days === 0) return value.from === today && value.to === today
+        const isActive = active && value.to === today && (() => {
           const diff = Math.round((Date.now() - new Date(value.from).getTime()) / 86400000)
           return diff >= p.days - 1 && diff <= p.days + 1
         })()
