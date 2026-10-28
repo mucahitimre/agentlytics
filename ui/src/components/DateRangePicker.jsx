@@ -1,7 +1,9 @@
 import { Calendar, X } from 'lucide-react'
 import { useTheme } from '../lib/theme'
+import { toLocalDateString } from '../lib/constants'
 
 const PRESETS = [
+  { label: 'today', days: 0 },
   { label: '7d',  days: 7 },
   { label: '30d', days: 30 },
   { label: '90d', days: 90 },
@@ -12,15 +14,15 @@ const PRESETS = [
 // onChange: called with same shape, or null to clear
 export default function DateRangePicker({ value, onChange }) {
   const { dark } = useTheme()
-  const today = new Date().toISOString().split('T')[0]
+  const today = toLocalDateString()
   const active = !!value
 
   function applyPreset(days) {
     const to = new Date()
-    const from = new Date(to.getTime() - days * 86400000)
+    const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - days)
     onChange({
-      from: from.toISOString().split('T')[0],
-      to: to.toISOString().split('T')[0],
+      from: toLocalDateString(from),
+      to: toLocalDateString(to),
     })
   }
 
@@ -39,6 +41,7 @@ export default function DateRangePicker({ value, onChange }) {
       {/* Preset buttons */}
       {PRESETS.map(p => {
         const isActive = active && (() => {
+          if (p.days === 0) return value.from === today && value.to === today
           const diff = Math.round((Date.now() - new Date(value.from).getTime()) / 86400000)
           return diff >= p.days - 1 && diff <= p.days + 1
         })()
