@@ -43,6 +43,8 @@ export default function Dashboard({ overview }) {
   const [dateRange, setDateRange] = useState(() => dateRangeFromParams(searchParams))
   const { dark } = useTheme()
   const [costs, setCosts] = useState(null)
+  const [editorFacet, setEditorFacet] = useState(null)
+  const [projectFacet, setProjectFacet] = useState(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [largeContextChats, setLargeContextChats] = useState(null)
   const [selectedChatId, setSelectedChatId] = useState(null)
@@ -107,6 +109,27 @@ export default function Dashboard({ overview }) {
     })
   }, [selectedEditor, selectedFolder, dateRange])
 
+  // Chip counts: editors narrowed by project + date, projects narrowed by editor + date
+  useEffect(() => {
+    let cancelled = false
+    const dateParams = dateRangeToApiParams(dateRange)
+    if (selectedFolder || dateRange) {
+      fetchDailyActivity({ folder: selectedFolder, ...dateParams }).then(days => {
+        const counts = {}
+        for (const day of days) {
+          for (const [src, n] of Object.entries(day.editors)) counts[src] = (counts[src] || 0) + n
+        }
+        if (!cancelled) setEditorFacet(Object.entries(counts).map(([id, count]) => ({ id, count })))
+      })
+    }
+    if (selectedEditor || dateRange) {
+      fetchOverviewApi({ editor: selectedEditor, ...dateParams }).then(ov => {
+        if (!cancelled) setProjectFacet(ov.topProjects)
+      })
+    }
+    return () => { cancelled = true }
+  }, [selectedEditor, selectedFolder, dateRange])
+
   if (!overview) return <AnimatedLoader label="Loading dashboard..." />
 
   const d = filteredData || overview
@@ -115,10 +138,13 @@ export default function Dashboard({ overview }) {
   const thisMonth = d.byMonth.length > 0 ? d.byMonth[d.byMonth.length - 1] : null
   const modes = Object.entries(d.byMode).sort((a, b) => b[1] - a[1])
   const sel = selectedEditor ? allEditors.find(e => e.id === selectedEditor) : null
-  // Project chips come from the unfiltered overview so the list stays stable while filtering
-  const allProjects = overview.topProjects.some(p => p.fullPath === selectedFolder) || !selectedFolder
-    ? overview.topProjects
-    : [...overview.topProjects, { fullPath: selectedFolder, count: null }]
+  // Each chip row is narrowed by the other filters; the selected chip always stays visible
+  const editorChips = ((selectedFolder || dateRange) && editorFacet ? editorFacet : allEditors)
+    .filter(e => e.count > 0 || e.id === selectedEditor)
+  if (selectedEditor && !editorChips.some(e => e.id === selectedEditor)) editorChips.push({ id: selectedEditor, count: 0 })
+  editorChips.sort((a, b) => b.count - a.count)
+  const projectChips = ((selectedEditor || dateRange) && projectFacet ? projectFacet : overview.topProjects).slice()
+  if (selectedFolder && !projectChips.some(p => p.fullPath === selectedFolder)) projectChips.push({ fullPath: selectedFolder, count: 0 })
   const sessionsQuery = new URLSearchParams()
   if (selectedEditor) sessionsQuery.set('editor', selectedEditor)
   if (selectedFolder) sessionsQuery.set('folder', selectedFolder)
@@ -223,7 +249,7 @@ export default function Dashboard({ overview }) {
       {/* Editor breakdown - compact row */}
       <div className="card p-3">
         <div className="flex items-center flex-wrap gap-1.5">
-          {allEditors.map(e => {
+          {editorChips.map(e => {
             const isSelected = selectedEditor === e.id
             return (
               <button
@@ -244,9 +270,9 @@ export default function Dashboard({ overview }) {
             )
           })}
         </div>
-        {allProjects.length > 0 && (
+        {projectChips.length > 0 && (
           <div className="mt-1.5 flex items-center flex-wrap gap-1.5">
-            {allProjects.map(p => {
+            {projectChips.map(p => {
               const isSelected = selectedFolder === p.fullPath
               return (
                 <button
