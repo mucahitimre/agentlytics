@@ -10,17 +10,18 @@ const PRESETS = [
   { label: '1y',  days: 365 },
 ]
 
-// Calendar-based ranges shown in the quick-range dropdown
+// Short ranges shown in the quick-range dropdown; like PRESETS they end today
+const QUICK_PRESETS = [
+  { label: 'today',     days: 0 },
+  { label: 'yesterday', days: 1 },
+]
+
 function quickRanges(now = new Date()) {
-  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate()
-  const mondayOffset = (now.getDay() + 6) % 7
-  const range = (from, to) => ({ from: toLocalDateString(from), to: toLocalDateString(to) })
-  return [
-    { label: 'today',      ...range(now, now) },
-    { label: 'yesterday',  ...range(new Date(y, m, d - 1), new Date(y, m, d - 1)) },
-    { label: 'last week',  ...range(new Date(y, m, d - mondayOffset - 7), new Date(y, m, d - mondayOffset - 1)) },
-    { label: 'last month', ...range(new Date(y, m - 1, 1), new Date(y, m, 0)) },
-  ]
+  return QUICK_PRESETS.map(q => ({
+    label: q.label,
+    from: toLocalDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() - q.days)),
+    to: toLocalDateString(now),
+  }))
 }
 
 // value: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } | null
